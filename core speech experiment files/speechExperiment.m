@@ -2,8 +2,9 @@ function speechExperiment(id,app,varargin)
 %% docstring goes here
 
 %% Static definitions
-includeTraining = true;
-numConditions = 12;
+includeTraining = true;  % 30 trials of clean and vocoded speech with visible text
+includePreTest = false;   %[NYI] 20 trials of speech vocoded with easy settings (define in the processConditions script)
+numConditions = 0;      % total experimental conditions in procesConditions (excludes training/pretest)
 speechCorpus = 'IEEE';   % expectedCorpusNames = {'AzBio','IEEE','Presto','Hint','NS','custom'};
 experiment.htmlDebug = 0;
 
@@ -19,9 +20,9 @@ experiment.sourcePath = ['/web/catss/Audio/Speech/' upper(speechCorpus) '/'];   
 % experiment.sourcePath = 'C:\Users\Jbeim\OneDrive\Documents\MATLAB\local scripts\Online Experiments\Jackson Speech\IEEESent\';                   % local testing
 
 
-% dataPath = '/labs/oxenhamlab/Speech/';                     % for use on MLWA Server
+dataPath = '/labs/oxenhamlab/SpeechTraining/';                     % for use on MLWA Server
 % dataPath = 'C:\Users\Jbeim\OneDrive\Documents\MATLAB\local scripts\Online Experiments\Jackson Speech\SentenceSubjects\';                           % local testing
-dataPath = '/labs/oxenhamlab/ASADemo2/';
+% % dataPath = '/labs/oxenhamlab/ASADemo2/';
 
 
 %% parse inputs, assign optional parameters
@@ -31,7 +32,7 @@ p = inputParser;
 experiment.subjectFile = [dataPath id '.mat']; % path to the subject datafile
 
 if ~isfile(experiment.subjectFile)
-    generateSentenceLists(dataPath,id,numConditions,'corpusname',speechCorpus,'includeTraining',includeTraining); % initialize a new data structure if no existing file is found
+    generateSentenceLists(dataPath,id,numConditions,'corpusname',speechCorpus,'listsPerCondition',2,'includeTraining',includeTraining); % initialize a new data structure if no existing file is found
 end
 
 load(experiment.subjectFile)
@@ -43,7 +44,7 @@ sourceFile = [experiment.sourcePath num2str(subject.nextList) '_' num2str(subjec
 % dir(experiment.sourcePath)
 
 [source, fs] = audioread(sourceFile);
-[experiment.audiodata,experiment.fs] = processConditions(source,fs,subject.nextCondition,includeTraining);
+[experiment.audiodata,experiment.fs] = processConditions(source,fs,subject.nextCondition,numConditions,includeTraining);
 
 experiment.includeTraining = includeTraining;
 experiment.numConditions = numConditions;
@@ -72,6 +73,13 @@ delete(previousFigElements)
 
 windowSize = repmat(app.Position(3:4),1,2);
 
+figureElements.instructionText = uilabel(guiFigure,...
+    'Position',[.3 .497 .383 .14].*windowSize,...
+    'Text','Loading please wait...',...
+    'HorizontalAlignment','center',...
+    'FontSize',18);
+
+
 
 figureElements.webAudioPlayer = uihtml...
     ('Parent',guiFigure,...
@@ -81,18 +89,21 @@ figureElements.webAudioPlayer = uihtml...
     'DataChangedFcn',@(src,event)webAudioChange(src,event)...
     );
 
-if ~experiment.htmlDebug 
-    figureElements.webAudioPlayer.Visible = 'off';
-end
 
 
- % dirty initialization, using afc_sound('init') doesnt work because the html is added later
+
+
 drawnow;
-pause(.1)
+pause(1)  % pause to allow html to initialize, this can probably be shortened.
+
+if experiment.htmlDebug 
+    figureElements.webAudioPlayer.Visible = 'on';
+end
+% dirty initialization, using afc_sound('init') doesnt work because the html is added later
 if isempty(figureElements.webAudioPlayer.Data)
     figureElements.webAudioPlayer.Data = {-1};
-    drawnow;
-    waitfor(figureElements.webAudioPlayer,'Data',0);
+    drawnow;  
+    waitfor(figureElements.webAudioPlayer,'Data',0)  
     disp('init success')
 end
 
@@ -141,11 +152,7 @@ figureElements.messageText = uilabel(guiFigure,...
     'FontSize',18);
 % instruction text
 
-figureElements.instructionText = uilabel(guiFigure,...
-    'Position',[.3 .497 .383 .14].*windowSize,...
-    'Text',experimentInitialInstructionText,...
-    'HorizontalAlignment','center',...
-    'FontSize',18);
+figureElements.instructionText.Text = experimentInitialInstructionText;
 
 % invisible (unless debugging) html audio player for web based playback
 
@@ -172,9 +179,6 @@ subject = getappdata(app.Parent,'subject');
 
 % grab processed audio and play
 experiment = getappdata(app.Parent,'experiment');
-
-
-
 
 audioFileName = [subject.id '_' num2str(subject.nextList) '_' num2str(subject.nextSentenceOrder(subject.sentenceIndex)) '.wav'];
 audiowrite([experiment.writePath audioFileName],experiment.audiodata,experiment.fs);
@@ -224,7 +228,7 @@ end
 % disp([experiment.sourcePath num2str(subject.nextList) '_' num2str(subject.nextSentenceOrder(subject.sentenceIndex)) '.WAV'])
 
 [source, fs] = audioread([experiment.sourcePath num2str(subject.nextList) '_' num2str(subject.nextSentenceOrder(subject.sentenceIndex)) '.WAV']);
-[experiment.audiodata,experiment.fs] = processConditions(source,fs,subject.nextCondition,experiment.includeTraining);
+[experiment.audiodata,experiment.fs] = processConditions(source,fs,subject.nextCondition,experiment.numConditions,experiment.includeTraining);
 
 % if preprocessing finishes before sentence is done playing, wait for sentence to complete playback.
 waitfor(figureElements.webAudioPlayer,'Data',4)

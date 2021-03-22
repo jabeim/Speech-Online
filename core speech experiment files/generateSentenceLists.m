@@ -23,25 +23,32 @@ defaultMaxLists = 23;
 defaultSentencesPerList = 20;
 defaultCorpusName = 'custom';
 defaultTraining = false;
+defaultPreTest = false;
 expectedCorpusNames = {'AzBio','IEEE','Presto','Hint','NS','custom'};
 
 validPositiveScalar = @(x) isnumeric(x) && isscalar(x) && (x > 0);
 addRequired(p,'dataPath')
 addRequired(p,'id')
-addRequired(p,'totalConditions',validPositiveScalar);
+addRequired(p,'totalConditions',@(x) isnumeric(x) && isscalar(x));
 addParameter(p,'maxLists',defaultMaxLists,validPositiveScalar)
 addParameter(p,'sentencesPerList',defaultSentencesPerList,validPositiveScalar);
 addParameter(p,'corpusName',defaultCorpusName,@(x) any(validatestring(x,expectedCorpusNames)));
 addParameter(p,'listsPerCondition',defaultListsPerCondition,validPositiveScalar);
 addOptional(p,'includeTraining',defaultTraining,@(x) islogical(x))
+addOptional(p,'includePreTest',defaultPreTest,@(x) islogical(x))
 
 parse(p,dataPath,id,varargin{:});
 
-if p.Results.includeTraining == true
+if p.Results.includeTraining == true && p.Results.includePreTest == true
+    totalConditions = p.Results.totalConditions+2;
+elseif xor(p.Results.includeTraining == true,p.Results.includePreTest == true)
     totalConditions = p.Results.totalConditions+1;
 else
     totalConditions = p.Results.totalConditions;
 end
+
+
+
 
 subject.corpusName = p.Results.corpusName; % save the corpus name
 
@@ -104,12 +111,15 @@ end
 %     subject.noiseord((4*k-3):4*k) = noise_genders_rand(2,:);
 % end
 
-if p.Results.includeTraining
-subject.conditionOrder = reshape(repmat(randperm(requiredLists/listsPerCondition-1),[listsPerCondition 1]),[1 (requiredLists/listsPerCondition-1)*listsPerCondition]); % CHANGE THIS - randomize condition order
-subject.conditionOrder = [repmat(totalConditions,1,listsPerCondition) subject.conditionOrder(randperm(length(subject.conditionOrder)))];
+if p.Results.includeTraining && p.Results.includePreTest
+    subject.conditionOrder = reshape(repmat(randperm(requiredLists/listsPerCondition-2),[listsPerCondition 1]),[1 (requiredLists/listsPerCondition-2)*listsPerCondition]); % CHANGE THIS - randomize condition order
+    subject.conditionOrder = [repmat(totalConditions-1,1,listsPerCondition) repmat(totalConditions,1,listsPerCondition) subject.conditionOrder(randperm(length(subject.conditionOrder)))];
+elseif p.Results.includeTraining || p.Results.includePreTest
+    subject.conditionOrder = reshape(repmat(randperm(requiredLists/listsPerCondition-1),[listsPerCondition 1]),[1 (requiredLists/listsPerCondition-1)*listsPerCondition]); % CHANGE THIS - randomize condition order
+    subject.conditionOrder = [repmat(totalConditions,1,listsPerCondition) subject.conditionOrder(randperm(length(subject.conditionOrder)))];
 else
-subject.conditionOrder = reshape(repmat(randperm(requiredLists/listsPerCondition),[listsPerCondition 1]),[1 requiredLists]); % CHANGE THIS - randomize condition order
-subject.conditionOrder = subject.conditionOrder(randperm(length(subject.conditionOrder)));
+    subject.conditionOrder = reshape(repmat(randperm(requiredLists/listsPerCondition),[listsPerCondition 1]),[1 requiredLists]); % CHANGE THIS - randomize condition order
+    subject.conditionOrder = subject.conditionOrder(randperm(length(subject.conditionOrder)));
 end
 % Initializing - start with first list, first sentence, first condition.
 subject.listIndex = 1;

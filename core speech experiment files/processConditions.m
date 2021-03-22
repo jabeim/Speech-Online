@@ -1,4 +1,4 @@
-function [output,fs] = processConditions(input,fs,condition,includeTraining)
+function [output,fs] = processConditions(input,fs,condition,totalConditions,includeTraining,includePreTest)
 %ENVOY_CONDITIONS This is where conditions are defined. Passes signal to
 %appropriate vocoder function.
 persistent allConditions
@@ -27,8 +27,9 @@ expPars = struct(...
 
 %% calculate all combinations of all dynamic parameters into total number of conditions
 expParNames = fields(expPars);
-
-totalConditions = 1;
+if totalConditions~= 0
+    totalConditions = 1;
+end
 for i = 1:length(expParNames)
     expParSize(i) = length(expPars.(expParNames{i}));
     totalConditions = totalConditions*expParSize(i);
@@ -97,9 +98,9 @@ if condition <= totalConditions
     
 elseif condition == totalConditions+1 % this condition can happen if training is enabled, but if training is not enabled then produce an error message
     %% Training block, by default this prsents clear and vocoded speech in quiet.
-    if includeTraining == false
+    if includeTraining == false && includePreTest == false
         error(['Condition ' num2str(condition) ' passed to script, but combination of defined variables produces only ' num2str(totalConditions) ' total conditions. Make sure totalConditions specified in generateSentenceLists is correct and check your dynamic parameters defined above in this script.']);
-    else
+    elseif includeTraining == true
         vocodedInput = spiral(input,nElectrodes,carrierDensity,carrierLo,carrierHi,currentSpread,...
             Inf,...
             0,...
@@ -111,8 +112,21 @@ elseif condition == totalConditions+1 % this condition can happen if training is
             fs); 
         
         output = [input'; zeros(fs,1); vocodedInput;]; % for the training conditions play both the vocoded 
-%         output = [vocodedInput; vocodedInput2]; % for the training conditions play both the vocoded 
+%         output = [vocodedInput; vocodedInput2]; % for the training conditions play both the vocoded
+    elseif includePreTest == true;
+        % NYI. TODO add pretest processing.
     end
+elseif condition == totalConditions+2  % pretest condition if both training and pretest are defined.
+    if includeTraining == false && includePreTest == false
+        error(['Condition ' num2str(condition) ' passed to script, but combination of defined variables produces only ' num2str(totalConditions) ' total conditions. Make sure totalConditions specified in generateSentenceLists is correct and check your dynamic parameters defined above in this script.']);
+    else
+        % define the pretest signal processing here.
+        output = spiral(input,nElectrodes,1,carrierLo,carrierHi,-12,...
+            Inf,...
+            0,...
+            fs); 
+    end
+    
 else% condition number is greater than max possible condition, throw an error telling user to ensure 
     %matching configuration between this script and generateSentenceLists
     error(['Condition ' num2str(condition) ' passed to script, but combination of defined variables produces only ' num2str(totalConditions) ' total conditions. Make sure totalConditions specified in generateSentenceLists is correct and check your dynamic parameters defined above in this script.']);
